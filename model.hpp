@@ -227,7 +227,7 @@ public:
 
 
 
-typedef std::pair<std::unique_ptr<Agent>, std::unique_ptr<Behavior>> AgentBehaviorStorage_t;
+typedef std::pair<std::shared_ptr<Agent>, std::shared_ptr<Behavior>> AgentBehaviorStorage_t;
 typedef std::pair<Agent*, Behavior*> AgentBehavior_t;
 
 struct Simulation {
