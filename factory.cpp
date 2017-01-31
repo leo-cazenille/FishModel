@@ -43,7 +43,13 @@ std::pair<Agent*, Behavior*> SimulationFactory::_createAgent(std::string const& 
 		b = new BM(*_sim, a);
 	} else if(behaviorType == "TrajectoryFollowing") {
 		b = new TrajectoryFollowingBehaviour(*_sim, a);
-		static_cast<TrajectoryFollowingBehaviour*>(b)->trajectory(trajectories[currentTrajectoryIndex++]);
+	} else if(behaviorType == "ZoneDependantBM") {
+		std::vector<std::shared_ptr<Behavior>> zones;
+		zones.emplace_back(new NoBehavior(*_sim, a));
+		for(size_t i = 0; i < nbZones; ++i) {
+			zones.emplace_back(new BM(*_sim, a));
+		}
+		b = new ZoneDependantBehavior(*_sim, a, _sim->arena, zones);
 	} else {
 		b = new Behavior(*_sim, a);
 	}

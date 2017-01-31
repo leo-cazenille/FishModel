@@ -13,6 +13,7 @@
 
 #include "model.hpp"
 #include "bm.hpp"
+#include "zones.hpp"
 
 
 namespace Fishmodel {
@@ -30,6 +31,8 @@ public:
 
 	std::vector<std::vector<Coord3D_t>> trajectories;
 	size_t currentTrajectoryIndex = 0;
+
+	size_t nbZones = 1;
 
 protected:
 	Simulation* _sim = nullptr;
