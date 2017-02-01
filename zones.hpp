@@ -38,9 +38,11 @@ public:
 	virtual void reinit();
 	virtual void step();
 
-	inline size_t currentZoneId() { return static_cast<size_t>(_zonesMatrix->at(_agent->headPos) / 10); } 
+	inline size_t zoneId(Coord_t const& coord) { return static_cast<size_t>(_zonesMatrix->at(coord) / 10.); } 
+	inline size_t currentZoneId() { return zoneId(_agent->headPos); } 
 	//inline size_t addZone(Behavior& z) { _zones.push_back(std::make_shared<Behavior>(&z)); return _zones.size() - 1; }
 	inline Behavior* behavior(size_t index) { return _zones[index].get(); }
+	inline Behavior* behavior(Coord_t const& coord) { return behavior(zoneId(coord)); }
 	inline Behavior* currentBehavior() { return behavior(currentZoneId()); } 
 	inline void zoneMatrix(decltype(_zonesMatrix) zoneMatrix) { _zonesMatrix = zoneMatrix; }
 

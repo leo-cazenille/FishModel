@@ -18,6 +18,7 @@
 #include <iostream>
 
 #include "model.hpp"
+#include "zones.hpp"
 
 
 namespace Fishmodel {
@@ -148,6 +149,45 @@ public:
 public:
 	virtual void reinit();
 	virtual void step();
+};
+
+
+
+struct ZonedBM : public BM {
+public:
+	real_t gammaZone = 55.0;
+
+protected:
+	ZoneDependantBehavior* _zdb;
+
+	std::vector<real_t> _zonesCaptors;
+	std::vector<real_t> _zonesAffinity;
+	std::vector<real_t> _zonesPDF;
+
+protected:
+	virtual void _detectZonesAroundAgent(real_t r);
+	virtual void _computeZonesPDF();
+	virtual real_t _computeAgentSpeed();
+
+public:
+	ZonedBM(Simulation& simulation, Agent* agent = nullptr) :
+			BM(simulation, agent) {
+		reinit();
+	}
+
+	ZonedBM(Simulation& simulation, Agent* agent, ZoneDependantBehavior* zdb, std::vector<real_t> zonesAffinity) :
+			BM(simulation, agent),
+			_zdb(zdb),
+			_zonesAffinity(zonesAffinity) {
+		reinit();
+	}
+
+public:
+	virtual void reinit();
+	virtual void step();
+
+	inline void zdb(decltype(_zdb) zdb) { _zdb = zdb; }
+	inline void zonesAffinity(decltype(_zonesAffinity)& zonesAffinity) { _zonesAffinity = zonesAffinity; }
 };
 
 

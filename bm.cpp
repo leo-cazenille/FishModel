@@ -824,12 +824,226 @@ void BM::step() {
 			break;
 		} else {
 			//if(dir >= 0) {
-			//	_CDF[dir] = 0.0
+			//	_CDF[dir] = 0.0;
 			//}
 		}
 	}
 
 	_agent->updateAgentPosition(_simulation.dt);
+}
+
+
+
+
+
+
+/////////////////////////////////////////////////////////
+////////////////////// ZonedBM ////////////////////////// {{{1
+/////////////////////////////////////////////////////////
+
+
+void ZonedBM::reinit() {
+	_fishPDFBessel = 1.0 / (2.0 * pi() * boost::math::cyl_bessel_i(0.0, kappaFishes));
+
+	for(size_t k = 0; k < evalAnglesNb; ++k) {
+		_neutPDFCenter[k] = exp(kappaNeutCenter * cos(evaluedProb[k])) / (2.0 * pi() * boost::math::cyl_bessel_i(0.0, kappaNeutCenter));
+	}
+}
+
+
+
+real_t ZonedBM::_computeAgentSpeed() {
+	//static lognormal_distribution<real_t> speedDistrib(_meanSpeed, _varSpeed);
+	lognormal_distribution<real_t> speedDistrib(_agent->meanSpeed, _agent->varSpeed);
+	return speedDistrib(rne());
+}
+
+
+void ZonedBM::_detectZonesAroundAgent(real_t r) {
+	_zonesCaptors.clear();
+	for(size_t k = 0; k < evalAnglesNb; ++k) {
+		real_t newDirection = _agent->direction;
+		real_t deltaDirection = evaluedProb[k];
+
+		// Adjust newDirection according to agent's maxTurningRate
+		if(deltaDirection < pi()) {
+			if(deltaDirection > _agent->maxTurningRate) {
+				deltaDirection = _agent->maxTurningRate;
+			}
+		} else {
+			if(deltaDirection <= 2. * pi() - _agent->maxTurningRate) {
+				deltaDirection = 2. * pi() - _agent->maxTurningRate;
+			}
+		}
+
+		newDirection = normAngle(newDirection + deltaDirection);
+		Coord_t pos = {
+			_agent->headPos.first + r * cos(newDirection),
+			_agent->headPos.second + r * sin(newDirection)
+		};
+
+		_zonesCaptors.push_back(_zdb->zoneId(pos));
+	}
+}
+
+
+void ZonedBM::_computeZonesPDF() {
+	_zonesPDF.clear();
+	real_t normalization = 0.0;
+
+	for(size_t k = 0; k < evalAnglesNb; ++k) {
+		if(_zonesCaptors[k] == 0) {
+			// Not in arena
+			_zonesPDF.push_back(0.);
+			continue;
+		}
+
+		real_t const val = _zonesAffinity[_zonesCaptors[k]];
+		_zonesPDF.push_back(val);
+		normalization += val;
+	}
+
+	// Normalize PDF
+	for(size_t k = 0; k < evalAnglesNb; ++k) {
+		_zonesPDF[k] /= normalization;
+	}
+}
+
+void ZonedBM::step() {
+	_computeFishPDF();
+
+	for(size_t run = 0; run < 50; ++run) {
+		real_t newSpeed = _computeAgentSpeed();
+		_detectZonesAroundAgent(newSpeed * _simulation.dt);
+		_computeZonesPDF();
+
+		// Compute final PDF and CDF
+		real_t cdfsum = 0.0;
+		for(size_t k = 0; k < evalAnglesNb; ++k) {
+			if(_zonesCaptors[k] == 0) {
+				// Not in arena
+				_PDF[k] = 0.;
+				_CDF[k] = cdfsum;
+			} else {
+				//real_t const val = (_neutPDFCenter[k] + alphasCenter * _totalAreaFishes * _fishPDF[k]) / (1. + alphasCenter * _totalAreaFishes);
+				real_t const val = (_neutPDFCenter[k] + alphasCenter * _totalAreaFishes * _fishPDF[k] + gammaZone * _zonesPDF[k]) / (1. + alphasCenter * _totalAreaFishes + gammaZone);
+				_PDF[k] = val;
+				_CDF[k] = cdfsum + val;
+				cdfsum += val;
+			}
+		}
+	
+		// Normalize CDF
+		normalizeVec(_CDF, cdfsum);
+
+		real_t z = unif01(rne());
+		int dir = -1;
+		for(int k = 0; k < _CDF.size(); ++k) {
+			if(z <= _CDF[k]) {
+				dir = k;
+				break;
+			}
+		}
+
+		real_t newDirection = _agent->direction;
+		real_t deltaDirection = 0.0;
+		if(dir >= 0) {
+			//newDirection += evaluedProb[dir];
+			deltaDirection = evaluedProb[dir];
+		}
+
+		// XXX Put in agent's code
+		// Adjust newDirection according to agent's maxTurningRate
+		if(deltaDirection < pi()) {
+			if(deltaDirection > _agent->maxTurningRate) {
+				deltaDirection = _agent->maxTurningRate;
+			}
+		} else {
+			if(deltaDirection <= 2. * pi() - _agent->maxTurningRate) {
+				deltaDirection = 2. * pi() - _agent->maxTurningRate;
+			}
+		}
+
+		newDirection = normAngle(newDirection + deltaDirection);
+
+		Coord_t newAgentsHeadPos = {
+			_agent->headPos.first + _simulation.dt * newSpeed * cos(newDirection),
+			_agent->headPos.second + _simulation.dt * newSpeed * sin(newDirection)
+		};
+
+		if(_simulation.arena.isInArena(newAgentsHeadPos)) {
+			_agent->direction = newDirection;
+			_agent->speed = newSpeed;
+			_agent->headPos = newAgentsHeadPos;
+			break;
+		}
+	}
+
+	_agent->updateAgentPosition(_simulation.dt);
+
+
+
+//	// Compute final PDF and CDF
+//	real_t cdfsum = 0.0;
+//		for(size_t k = 0; k < evalAnglesNb; ++k) {
+//			real_t const val = (_neutPDFCenter[k] + alphasCenter * _totalAreaFishes * _fishPDF[k]) / (1. + alphasCenter * _totalAreaFishes);
+//			_PDF[k] = val;
+//			_CDF[k] = cdfsum + val;
+//			cdfsum += val;
+//		}
+//
+//	// Normalize CDF
+//	normalizeVec(_CDF, cdfsum);
+//
+//	for(size_t run = 0; run < 50; ++run) {
+//	//for(;;) {
+//		real_t newSpeed = _computeAgentSpeed();
+//		real_t z = unif01(rne());
+//		int dir = -1;
+//		for(int k = 0; k < _CDF.size(); ++k) {
+//			if(z <= _CDF[k]) {
+//				dir = k;
+//				break;
+//			}
+//		}
+//
+//		real_t newDirection = _agent->direction;
+//		real_t deltaDirection = 0.0;
+//		if(dir >= 0) {
+//			//newDirection += evaluedProb[dir];
+//			deltaDirection = evaluedProb[dir];
+//		}
+//
+//		// XXX Put in agent's code
+//		// Adjust newDirection according to agent's maxTurningRate
+//		if(deltaDirection < pi()) {
+//			if(deltaDirection > _agent->maxTurningRate) {
+//				deltaDirection = _agent->maxTurningRate;
+//			}
+//		} else {
+//			if(deltaDirection <= 2. * pi() - _agent->maxTurningRate) {
+//				deltaDirection = 2. * pi() - _agent->maxTurningRate;
+//			}
+//		}
+//
+//		newDirection = normAngle(newDirection + deltaDirection);
+//
+//		Coord_t newAgentsHeadPos = {
+//			_agent->headPos.first + _simulation.dt * newSpeed * cos(newDirection),
+//			_agent->headPos.second + _simulation.dt * newSpeed * sin(newDirection)
+//		};
+//
+//		if(_simulation.arena.isInArena(newAgentsHeadPos)) {
+//			_agent->direction = newDirection;
+//			_agent->speed = newSpeed;
+//			_agent->headPos = newAgentsHeadPos;
+//			break;
+//		} else {
+//			//if(dir >= 0) {
+//			//	_CDF[dir] = 0.0;
+//			//}
+//		}
+//	}
 }
 
 
