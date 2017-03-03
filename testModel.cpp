@@ -18,7 +18,6 @@
 #include <boost/algorithm/string.hpp>
 
 using namespace Fishmodel;
-using namespace CATS;
 using namespace std;
 
 // For getopt
@@ -41,13 +40,14 @@ void usage() {
 int main(int argc, char** argv) {
 	size_t nbSteps = 1000;
 	size_t nbFishes = 10;
+	size_t nbZones = 1;
 	std::string imgFilename = "arena.png";
 	std::string inputFilename = "";
 	unsigned seed = 0;
 	double dt = 1. / 3.;
 
 	int c;
-	static char optstring[] = "n:F:i:s:d:I:";
+	static char optstring[] = "n:F:i:s:d:I:z:";
 	opterr=0;
 	while ((c=getopt(argc, argv, optstring)) != -1) {
 		switch(c) {
@@ -73,6 +73,10 @@ int main(int argc, char** argv) {
 
 			case 'I':
 				inputFilename = optarg;
+				break;
+
+			case 'z':
+				nbZones = atoi(optarg);
 				break;
 
 			case 'h':
@@ -102,10 +106,14 @@ int main(int argc, char** argv) {
 	factory.nbFishes = nbFishes;
 	factory.nbRobots = 0;
 	factory.nbVirtuals = 0;
+	factory.nbZones = nbZones;
 
-	factory.behaviorFishes = "BM"; //"TrajectoryFollowing";
-	factory.behaviorRobots = "BM";
-	factory.behaviorVirtuals = "BM";
+	//factory.behaviorFishes = "BM"; //"TrajectoryFollowing";
+	//factory.behaviorRobots = "BM";
+	//factory.behaviorVirtuals = "BM";
+	factory.behaviorFishes = "ZoneDependantBM";
+	factory.behaviorRobots = "ZoneDependantBM";
+	factory.behaviorVirtuals = "ZoneDependantBM";
 
 	// Find input trajectories, if wanted
 	if(inputFilename != "") {

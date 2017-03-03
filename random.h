@@ -13,7 +13,7 @@
 #include <omp.h>
 #endif
 
-namespace CATS {
+namespace Fishmodel {
 // Random Distributions
 extern std::uniform_real_distribution<double> unif01;
 extern std::uniform_real_distribution<double> unifAngle;

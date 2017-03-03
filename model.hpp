@@ -84,6 +84,13 @@ public:
 		return this->isInArenaDiscrete(this->realToDiscreteCoords(c));
 	}
 
+	//template <typename ret_t=uchar>
+	//inline ret_t at(Coord_t const c) const {
+	inline uchar at(Coord_t const c) const {
+		Coord_t const discreteCoords = this->realToDiscreteCoords(c);
+		return this->arenaMatrix.at<uchar>(discreteCoords.second, discreteCoords.first);
+	}
+
 	inline double getDistanceToWall(Coord_t const c) const {
 		return (size.first / distanceMatrix.rows) * distanceMatrix.at<uchar>(
 			static_cast<size_t>(c.first / size.first * distanceMatrix.rows),

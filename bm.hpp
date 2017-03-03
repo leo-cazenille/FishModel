@@ -18,6 +18,7 @@
 #include <iostream>
 
 #include "model.hpp"
+#include "zones.hpp"
 
 
 namespace Fishmodel {
@@ -148,6 +149,61 @@ public:
 public:
 	virtual void reinit();
 	virtual void step();
+};
+
+
+
+struct ZonedBM : public BM {
+public:
+	real_t gammaZone = 55.0;
+	real_t beta = 55.0;
+	real_t kappaWalls = 20.0;
+
+	real_t minSpeed = 0.0;
+	real_t maxSpeed = 0.030;
+	std::vector<real_t> speedHistogram;
+	std::vector<std::pair<Coord_t,Coord_t>> wallsCoord;
+	std::vector<std::pair<Coord_t,Coord_t>> wallsDirectionCoord;
+
+	bool followWalls = false;
+
+protected:
+	ZoneDependantBehavior* _zdb;
+
+	real_t _wallPDFBessel;
+	real_t _totalAreaWalls = 0.0;
+	std::vector<real_t> _wallsPDF;
+	std::vector<real_t> _zonesSensors;
+	std::vector<real_t> _zonesAffinity;
+	std::vector<real_t> _zonesPDF;
+	std::piecewise_constant_distribution<> _speedDistribution;
+
+protected:
+	virtual void _computeWallsPDF();
+	virtual void _detectZonesAroundAgent(real_t r);
+	virtual void _computeZonesPDF();
+	virtual real_t _computeAgentSpeed();
+
+public:
+	ZonedBM(Simulation& simulation, Agent* agent = nullptr) :
+			BM(simulation, agent) {
+		reinit();
+	}
+
+	ZonedBM(Simulation& simulation, Agent* agent, ZoneDependantBehavior* zdb, std::vector<real_t> zonesAffinity) :
+			BM(simulation, agent),
+			_zdb(zdb),
+			_zonesAffinity(zonesAffinity) {
+		reinit();
+	}
+
+public:
+	virtual void reinit();
+	virtual void step();
+
+	inline void zdb(decltype(_zdb) zdb) { _zdb = zdb; }
+	inline void zonesAffinity(decltype(_zonesAffinity)& zonesAffinity) { _zonesAffinity = zonesAffinity; }
+	inline decltype(_zonesAffinity)* zonesAffinity() { return &_zonesAffinity; }
 };
 
 

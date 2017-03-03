@@ -12,7 +12,7 @@
 //std::random_device rnd;
 //}
 
-namespace CATS {
+namespace Fishmodel {
 //std::mt19937 rne(rnd());
 std::uniform_real_distribution<double> unif01(0.0, 1.0);
 std::uniform_real_distribution<double> unifAngle(0.0, 2.0 * M_PI);

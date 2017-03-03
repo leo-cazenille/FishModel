@@ -14,7 +14,6 @@
 
 using namespace Fishmodel;
 using namespace std;
-using namespace CATS;
 
 
 /////////////////////////////////////////////////////////
@@ -43,7 +42,19 @@ std::pair<Agent*, Behavior*> SimulationFactory::_createAgent(std::string const& 
 		b = new BM(*_sim, a);
 	} else if(behaviorType == "TrajectoryFollowing") {
 		b = new TrajectoryFollowingBehaviour(*_sim, a);
-		static_cast<TrajectoryFollowingBehaviour*>(b)->trajectory(trajectories[currentTrajectoryIndex++]);
+	} else if(behaviorType == "ZoneDependantBM") {
+		std::vector<std::shared_ptr<Behavior>> zones;
+		zones.emplace_back(new NoBehavior(*_sim, a));
+		for(size_t i = 0; i < nbZones; ++i) {
+			zones.emplace_back(new ZonedBM(*_sim, a));
+		}
+		auto* zdb = new ZoneDependantBehavior(*_sim, a, _sim->arena, zones);
+		auto affinities = std::vector<real_t>(nbZones, 1.0);
+		for(size_t i = 0; i < nbZones; ++i) {
+			reinterpret_cast<ZonedBM*>(zones[i+1].get())->zdb(zdb);
+			reinterpret_cast<ZonedBM*>(zones[i+1].get())->zonesAffinity(affinities);
+		}
+		b = zdb;
 	} else {
 		b = new Behavior(*_sim, a);
 	}
