@@ -18,7 +18,6 @@
 #include <boost/algorithm/string.hpp>
 
 using namespace Fishmodel;
-using namespace CATS;
 using namespace std;
 
 // For getopt

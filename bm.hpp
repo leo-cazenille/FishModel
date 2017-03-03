@@ -156,15 +156,30 @@ public:
 struct ZonedBM : public BM {
 public:
 	real_t gammaZone = 55.0;
+	real_t beta = 55.0;
+	real_t kappaWalls = 20.0;
+
+	real_t minSpeed = 0.0;
+	real_t maxSpeed = 0.030;
+	std::vector<real_t> speedHistogram;
+	std::vector<std::pair<Coord_t,Coord_t>> wallsCoord;
+	std::vector<std::pair<Coord_t,Coord_t>> wallsDirectionCoord;
+
+	bool followWalls = false;
 
 protected:
 	ZoneDependantBehavior* _zdb;
 
-	std::vector<real_t> _zonesCaptors;
+	real_t _wallPDFBessel;
+	real_t _totalAreaWalls = 0.0;
+	std::vector<real_t> _wallsPDF;
+	std::vector<real_t> _zonesSensors;
 	std::vector<real_t> _zonesAffinity;
 	std::vector<real_t> _zonesPDF;
+	std::piecewise_constant_distribution<> _speedDistribution;
 
 protected:
+	virtual void _computeWallsPDF();
 	virtual void _detectZonesAroundAgent(real_t r);
 	virtual void _computeZonesPDF();
 	virtual real_t _computeAgentSpeed();
@@ -188,6 +203,7 @@ public:
 
 	inline void zdb(decltype(_zdb) zdb) { _zdb = zdb; }
 	inline void zonesAffinity(decltype(_zonesAffinity)& zonesAffinity) { _zonesAffinity = zonesAffinity; }
+	inline decltype(_zonesAffinity)* zonesAffinity() { return &_zonesAffinity; }
 };
 
 

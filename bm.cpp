@@ -8,13 +8,13 @@
 #include <boost/math/special_functions/bessel.hpp>
 #include <iostream>
 #include <limits>
+#include <exception>
 
 #include "bm.hpp"
 #include "random.h"
 
 using namespace Fishmodel;
 using namespace std;
-using namespace CATS;
 
 /////////////////////////////////////////////////////////
 /////////////////// Utility functions /////////////////// {{{1
@@ -501,7 +501,7 @@ std::array<std::array<real_t, 4>, 6> constexpr indicesCoords =
 ////		real_t const wallRetinaY = -wallXPosTmp[k] * sin(_agent->direction) + wallYPosTmp[k] * cos(_agent->direction);
 ////		real_t const wallCenterAngleTmp = atan2(wallRetinaY, wallRetinaX);
 ////		real_t const distWallTmp = sqrt(wallRetinaX * wallRetinaX + wallRetinaY * wallRetinaY);
-////		//_distToWall = std::min(_distToWall, distWallTmp); 
+////		//_distToWall = std::min(_distToWall, distWallTmp);
 ////		if(distWallTmp > _agent->wallDistancePerception) {
 ////			real_t const wallCenterAngle = normAngle(wallCenterAngleTmp);
 ////			real_t const distWall = distWallTmp;
@@ -843,24 +843,38 @@ void BM::step() {
 
 
 void ZonedBM::reinit() {
-	_fishPDFBessel = 1.0 / (2.0 * pi() * boost::math::cyl_bessel_i(0.0, kappaFishes));
+	try {
+		//std::cout << "DEBUG2: " << kappaFishes << " " << kappaNeutCenter << std::endl;
+		_fishPDFBessel = 1.0 / (2.0 * pi() * boost::math::cyl_bessel_i(0.0, kappaFishes));
+		_wallPDFBessel = 1.0 / (2.0 * pi() * boost::math::cyl_bessel_i(0.0, kappaWalls));
 
-	for(size_t k = 0; k < evalAnglesNb; ++k) {
-		_neutPDFCenter[k] = exp(kappaNeutCenter * cos(evaluedProb[k])) / (2.0 * pi() * boost::math::cyl_bessel_i(0.0, kappaNeutCenter));
+		for(size_t k = 0; k < evalAnglesNb; ++k) {
+			_neutPDFCenter[k] = exp(kappaNeutCenter * cos(evaluedProb[k])) / (2.0 * pi() * boost::math::cyl_bessel_i(0.0, kappaNeutCenter));
+		}
+
+		std::vector<real_t> speedHistPos = {};
+		for(size_t i = 0; i <= speedHistogram.size(); ++i) {
+			real_t const val = minSpeed + (maxSpeed - minSpeed) / static_cast<real_t>(speedHistogram.size()) * static_cast<real_t>(i);
+			speedHistPos.push_back(val);
+		}
+		_speedDistribution = std::piecewise_constant_distribution<>(speedHistPos.begin(), speedHistPos.end(), speedHistogram.begin());
+	} catch(std::exception& e) {
+		std::cout << "EXCEPTION: " << e.what() << " " << kappaNeutCenter << " " << kappaFishes << std::endl;
+		throw e;
 	}
 }
 
 
 
 real_t ZonedBM::_computeAgentSpeed() {
-	//static lognormal_distribution<real_t> speedDistrib(_meanSpeed, _varSpeed);
-	lognormal_distribution<real_t> speedDistrib(_agent->meanSpeed, _agent->varSpeed);
-	return speedDistrib(rne());
+	//lognormal_distribution<real_t> speedDistrib(_agent->meanSpeed, _agent->varSpeed);
+	//return speedDistrib(rne());
+	return _speedDistribution(rne());
 }
 
 
 void ZonedBM::_detectZonesAroundAgent(real_t r) {
-	_zonesCaptors.clear();
+	_zonesSensors.clear();
 	for(size_t k = 0; k < evalAnglesNb; ++k) {
 		real_t newDirection = _agent->direction;
 		real_t deltaDirection = evaluedProb[k];
@@ -882,7 +896,7 @@ void ZonedBM::_detectZonesAroundAgent(real_t r) {
 			_agent->headPos.second + r * sin(newDirection)
 		};
 
-		_zonesCaptors.push_back(_zdb->zoneId(pos));
+		_zonesSensors.push_back(_zdb->zoneId(pos));
 	}
 }
 
@@ -892,13 +906,13 @@ void ZonedBM::_computeZonesPDF() {
 	real_t normalization = 0.0;
 
 	for(size_t k = 0; k < evalAnglesNb; ++k) {
-		if(_zonesCaptors[k] == 0) {
+		if(_zonesSensors[k] == 0) {
 			// Not in arena
 			_zonesPDF.push_back(0.);
 			continue;
 		}
 
-		real_t const val = _zonesAffinity[_zonesCaptors[k]];
+		real_t const val = _zonesAffinity[_zonesSensors[k]];
 		_zonesPDF.push_back(val);
 		normalization += val;
 	}
@@ -909,6 +923,186 @@ void ZonedBM::_computeZonesPDF() {
 	}
 }
 
+
+
+void ZonedBM::_computeWallsPDF() {
+	_neutPDFCenter = vector<real_t>(evalAnglesNb, 0.0);
+
+	// Find closest wall
+	real_t minDist = 10000.0;
+	size_t minIndex = 0;
+	for(size_t i = 0; i < wallsCoord.size(); ++i) {
+		real_t const fstX = wallsCoord[i].first.first;
+		real_t const fstY = wallsCoord[i].first.second;
+		real_t const sndX = wallsCoord[i].second.first;
+		real_t const sndY = wallsCoord[i].second.second;
+		real_t const dist = std::abs( (sndY - fstY) * _agent->headPos.first - (sndX - fstX) * _agent->headPos.second + sndX * fstY - sndY * fstX) / std::sqrt((sndY - fstY) * (sndY - fstY) + (sndX - fstX) * (sndX - fstX));
+		if(dist < minDist) {
+			minDist = dist;
+			minIndex = i;
+		}
+	}
+
+	// XXX
+	// Find closest corner
+	size_t minCornerDist = 0;
+	size_t minCornerIndex = 0;
+	for(size_t i = 0; i < wallsCoord.size(); ++i) {
+		real_t const fstX = wallsCoord[i].first.first;
+		real_t const fstY = wallsCoord[i].first.second;
+		real_t dist = std::sqrt( (fstX - _agent->headPos.first) * (fstX - _agent->headPos.first) + (fstY - _agent->headPos.second) * (fstY - _agent->headPos.second));
+		if(dist < minCornerDist) {
+			minCornerDist = dist;
+			minCornerIndex = i;
+		}
+	}
+	size_t minCornerPrevIndex = 0;
+	if(minCornerIndex == 0) {
+		minCornerPrevIndex = wallsCoord.size() - 1;
+	} else {
+		minCornerPrevIndex = minCornerPrevIndex - 1;
+	}
+
+
+	// Find 2 possible directions
+	real_t fstTheta = 0.;
+	real_t sndTheta = 0.;
+	if(minDist <= minCornerDist) {
+		real_t const fstX = wallsDirectionCoord[minIndex].first.first;
+		real_t const fstY = wallsDirectionCoord[minIndex].first.second;
+		real_t const sndX = wallsDirectionCoord[minIndex].second.first;
+		real_t const sndY = wallsDirectionCoord[minIndex].second.second;
+		fstTheta = normAngle(atan2(sndY, sndX) - atan2(fstY, fstX));
+		sndTheta = normAngle(atan2(fstY, fstX) - atan2(sndY, sndX));
+	} else {
+		real_t const fstX = wallsDirectionCoord[minCornerIndex].first.first;
+		real_t const fstY = wallsDirectionCoord[minCornerIndex].first.second;
+		real_t const sndX = wallsDirectionCoord[minCornerIndex].second.first;
+		real_t const sndY = wallsDirectionCoord[minCornerIndex].second.second;
+		real_t const prevfstX = wallsDirectionCoord[minCornerPrevIndex].first.first;
+		real_t const prevfstY = wallsDirectionCoord[minCornerPrevIndex].first.second;
+		real_t const prevsndX = wallsDirectionCoord[minCornerPrevIndex].second.first;
+		real_t const prevsndY = wallsDirectionCoord[minCornerPrevIndex].second.second;
+
+		fstTheta = normAngle(atan2(sndY, sndX) - atan2(fstY, fstX));
+		sndTheta = normAngle(atan2(prevfstY, prevfstX) - atan2(prevsndY, prevsndX));
+	}
+
+
+	// Update PDF
+	for(size_t k = 0; k < evalAnglesNb; ++k) {
+		_neutPDFCenter[k] = (
+			exp(kappaNeutCenter * cos(evaluedProb[k] - fstTheta)) / (2.0 * pi() * boost::math::cyl_bessel_i(0.0, kappaNeutCenter)) +
+			exp(kappaNeutCenter * cos(evaluedProb[k] - sndTheta)) / (2.0 * pi() * boost::math::cyl_bessel_i(0.0, kappaNeutCenter))
+			) / 2.;
+	}
+
+//	_wallsPDF = vector<real_t>(evalAnglesNb, 0.0);
+//	_totalAreaWalls = 0.0;
+//
+//	for(auto& _w: wallsCoord) {
+//		real_t const fstX = _w.first.first;
+//		real_t const fstY = _w.first.second;
+//		real_t const sndX = _w.second.first;
+//		real_t const sndY = _w.second.second;
+//		real_t const width = 0.01;
+//		real_t const height = 0.10;
+//		real_t const length = sqrt((fstX - sndX) * (fstX - sndX) + (fstY - sndY) * (fstY - sndY));
+//		real_t const direction = normAngle(atan2(sndY, sndX) - atan2(fstY, fstX));
+//		real_t const angleSide = acos((length/3.0) / sqrt((length/3.0) * (length/3.0) + (width/2.0) * (width/2.0)));
+//		real_t const norm = sqrt((length / 3.0) * (length / 3.0) + (width / 2.0) * (width / 2.0));
+//		real_t const relativePosX = fstX - _agent->headPos.first;
+//		real_t const relativePosY = fstY - _agent->headPos.second;
+//
+//		std::array<Coord3D_t, 6> tmpWallPosition;
+//		tmpWallPosition[0] = {
+//			relativePosX,
+//			relativePosY,
+//			0.0};
+//
+//		tmpWallPosition[1] = {
+//			relativePosX - cos(direction) * length,
+//			relativePosY - sin(direction) * length,
+//			0.0};
+//
+//		tmpWallPosition[2] = {
+//			relativePosX + cos(direction + pi() + angleSide) * norm,
+//			relativePosY + sin(direction + pi() + angleSide) * norm,
+//			0.0};
+//
+//		tmpWallPosition[3] = {
+//			relativePosX + cos(direction + pi() - angleSide) * norm,
+//			relativePosY + sin(direction + pi() - angleSide) * norm,
+//			0.0};
+//
+//		tmpWallPosition[4] = {
+//			relativePosX - cos(direction) * length / 3.0,
+//			relativePosY - sin(direction) * length / 3.0,
+//			height / 2.0};
+//
+//		tmpWallPosition[5] = {
+//			relativePosX - cos(direction) * length / 3.0,
+//			relativePosY - sin(direction) * length / 3.0,
+//			-height / 2.0};
+//
+//		std::array<real_t, 6> angleRetina;
+//		for(size_t k = 0; k < 6; ++k) {
+//			real_t const positionXRetina = tmpWallPosition[k][0] * cos(_agent->direction) + tmpWallPosition[k][1] * sin(_agent->direction);
+//			real_t const positionYRetina = -tmpWallPosition[k][0] * sin(_agent->direction) + tmpWallPosition[k][1] * cos(_agent->direction);
+//			angleRetina[k] = atan2(positionYRetina, positionXRetina);
+//		}
+//
+//		real_t const headRetinaX = relativePosX * cos(_agent->direction) + relativePosY * sin(_agent->direction);
+//		real_t const headRetinaY = -relativePosX * sin(_agent->direction) + relativePosY * cos(_agent->direction);
+//		real_t const headAngle = normAngle(atan2(headRetinaY, headRetinaX));
+//		real_t const distAgent = sqrt(headRetinaX * headRetinaX + headRetinaY * headRetinaY);
+//		real_t const agentCenter = normAngle(atan2(cos(angleRetina[0]) + cos(angleRetina[1]), sin(angleRetina[0]) + sin(angleRetina[1])) );
+//
+//		std::array<real_t, 6> agentSize = {
+//			std::abs(angleRetina[0] - angleRetina[1]),
+//			std::abs(angleRetina[0] - angleRetina[2]),
+//			std::abs(angleRetina[0] - angleRetina[3]),
+//			std::abs(angleRetina[3] - angleRetina[2]),
+//			std::abs(angleRetina[2] - angleRetina[1]),
+//			std::abs(angleRetina[3] - angleRetina[1]) };
+//		size_t indiceLargestSize = 0;
+//		real_t largestSize = 0.0;
+//		for(size_t k = 0; k < 6; ++k) {
+//			if(agentSize[k] > pi())
+//				agentSize[k] = std::abs(2. * pi() - agentSize[k]);
+//			if(agentSize[k] > largestSize) {
+//				largestSize = agentSize[k];
+//				indiceLargestSize = k;
+//			}
+//		}
+//
+//		std::array<Coord3D_t, 4> wallsCoords;
+//		for(size_t k = 0; k < 4; ++k) {
+//			wallsCoords[k] = tmpWallPosition[indicesCoords[indiceLargestSize][k]];
+//		}
+//		auto const areaWalls = surfaceSphereFish(wallsCoords);
+//
+//		// Find if the wall is within current agent FOV
+//		if(		(areaWalls > _agent->agentMinAnglePerception) &&
+//				((agentCenter < _agent->fov * pi() / 180.0) || (agentCenter > (360. - _agent->fov) * pi() / 180.0))) {
+//			_totalAreaWalls += areaWalls;
+//			// Compute PDF
+//			for(size_t k = 0; k < evalAnglesNb; ++k) {
+//				_wallsPDF[k] += areaWalls * _wallPDFBessel * exp(kappaWalls * cos(evaluedProb[k] - headAngle));
+//			}
+//		}
+//	}
+//
+//	// Normalize PDF
+//	if(_totalAreaWalls > 0.0) {
+//		for(size_t k = 0; k < evalAnglesNb; ++k) {
+//			_wallsPDF[k] /= _totalAreaWalls;
+//		}
+//	}
+
+}
+
+
 void ZonedBM::step() {
 	_computeFishPDF();
 
@@ -916,23 +1110,48 @@ void ZonedBM::step() {
 		real_t newSpeed = _computeAgentSpeed();
 		_detectZonesAroundAgent(newSpeed * _simulation.dt);
 		_computeZonesPDF();
+		if(followWalls)
+			_computeWallsPDF();
 
 		// Compute final PDF and CDF
 		real_t cdfsum = 0.0;
 		for(size_t k = 0; k < evalAnglesNb; ++k) {
-			if(_zonesCaptors[k] == 0) {
+			if(_zonesSensors[k] == 0) {
 				// Not in arena
 				_PDF[k] = 0.;
 				_CDF[k] = cdfsum;
 			} else {
 				//real_t const val = (_neutPDFCenter[k] + alphasCenter * _totalAreaFishes * _fishPDF[k]) / (1. + alphasCenter * _totalAreaFishes);
-				real_t const val = (_neutPDFCenter[k] + alphasCenter * _totalAreaFishes * _fishPDF[k] + gammaZone * _zonesPDF[k]) / (1. + alphasCenter * _totalAreaFishes + gammaZone);
+				// XXX : maybe biaised toward zones (no agent cohesion .. ?)
+				//real_t const val = (_neutPDFCenter[k] + alphasCenter * _totalAreaFishes * _fishPDF[k] + gammaZone * _zonesPDF[k]) / (1. + alphasCenter * _totalAreaFishes + gammaZone);
+
+				real_t const val = (_neutPDFCenter[k] + alphasCenter * _totalAreaFishes * _fishPDF[k]) * (_zonesPDF[k]) / (1. + alphasCenter * _totalAreaFishes);
+				//real_t const val = (_neutPDFCenter[k] + alphasCenter * _totalAreaFishes * _fishPDF[k]) * (gammaZone * _zonesPDF[k]) / (1. + alphasCenter * _totalAreaFishes);
+				//std::cout << "DEB: val=" << val << " "
+				//	<< " neut=" << (_neutPDFCenter[k] / (1. + alphasCenter * _totalAreaFishes))
+				//	<< " agents=" << (alphasCenter * _totalAreaFishes * _fishPDF[k] / (1. + alphasCenter * _totalAreaFishes))
+				//	<< " zones=" << (gammaZone * _zonesPDF[k])
+				//	<< " _totalAreaFishes=" << _totalAreaFishes
+				//	<< std::endl;
+
+
+
+				//real_t const val = (_neutPDFCenter[k] + alphasCenter * _totalAreaFishes * _fishPDF[k] + beta * _totalAreaWalls * _wallsPDF[k]) * (gammaZone * _zonesPDF[k]) / (1. + alphasCenter * _totalAreaFishes + beta * _totalAreaFishes);
+				//real_t const val = (_neutPDFCenter[k] + alphasCenter * 1. * _totalAreaFishes * _fishPDF[k] + beta * 1. * _totalAreaWalls * _wallsPDF[k] + gammaZone * 1. * _zonesPDF[k]) / (1. + alphasCenter * _totalAreaFishes + beta * _totalAreaFishes + gammaZone);
+				//std::cout << "DEB: val=" << val << " "
+				//	<< " neut=" << (_neutPDFCenter[k] / (1. + alphasCenter * _totalAreaFishes + beta * _totalAreaWalls + gammaZone))
+				//	<< " agents=" << (alphasCenter * 1. * _totalAreaFishes * _fishPDF[k] / (1. + alphasCenter * _totalAreaFishes + beta * _totalAreaWalls + gammaZone))
+				//	<< " walls=" << (beta * 1. * _totalAreaWalls * _wallsPDF[k] / (1. + alphasCenter * _totalAreaFishes + beta * _totalAreaWalls + gammaZone))
+				//	<< " zones=" << (gammaZone * 1. * _zonesPDF[k] / (1. + alphasCenter * _totalAreaFishes + beta * _totalAreaWalls + gammaZone))
+				//	<< " _totalAreaFishes=" << _totalAreaFishes
+				//	<< " _totalAreaWalls=" << _totalAreaWalls
+				//	<< std::endl;
 				_PDF[k] = val;
 				_CDF[k] = cdfsum + val;
 				cdfsum += val;
 			}
 		}
-	
+
 		// Normalize CDF
 		normalizeVec(_CDF, cdfsum);
 
