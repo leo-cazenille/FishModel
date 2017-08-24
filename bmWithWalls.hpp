@@ -36,7 +36,6 @@ public:
 	real_t wallDistanceThreshold = 0.02;     //! d
 	real_t repulsionFromAgentsAtDist = 0.02; //! Repulsion from agent if other is too close
 
-	real_t currentDistanceToNearestWall = 1.0;
 
 	std::vector<std::pair<Coord_t,Coord_t>> wallsCoord;
 
@@ -50,6 +49,8 @@ protected:
 protected:
 	real_t _fishPDFBessel;
 	real_t _totalAreaFishes = 0.0;  //! \A_{T_f}  (automatically set)
+
+	real_t _currentDistanceToNearestWall = 1.0;
 
 
 protected:

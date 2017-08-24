@@ -260,7 +260,7 @@ void BMWithWalls::_computeWallsPDF() {
 		real_t const sndY = wallsCoord[minIndex].second.second;
 		fstTheta = normAngle(atan2(sndY, sndX) - atan2(fstY, fstX));
 		sndTheta = normAngle(atan2(fstY, fstX) - atan2(sndY, sndX));
-		currentDistanceToNearestWall = minDist;
+		_currentDistanceToNearestWall = minDist;
 	} else {
 		real_t const fstX = wallsCoord[minCornerIndex].first.first;
 		real_t const fstY = wallsCoord[minCornerIndex].first.second;
@@ -270,7 +270,7 @@ void BMWithWalls::_computeWallsPDF() {
 		real_t const prevfstY = wallsCoord[minCornerPrevIndex].first.second;
 		real_t const prevsndX = wallsCoord[minCornerPrevIndex].second.first;
 		real_t const prevsndY = wallsCoord[minCornerPrevIndex].second.second;
-		currentDistanceToNearestWall = minCornerDist;
+		_currentDistanceToNearestWall = minCornerDist;
 
 		fstTheta = normAngle(atan2(sndY, sndX) - atan2(fstY, fstX));
 		sndTheta = normAngle(atan2(prevfstY, prevfstX) - atan2(prevsndY, prevsndX));
@@ -312,7 +312,7 @@ void BMWithWalls::step() {
 
 	// Compute final PDF and CDF
 	real_t cdfsum = 0.0;
-	if(currentDistanceToNearestWall < wallDistanceThreshold) {
+	if(_currentDistanceToNearestWall < wallDistanceThreshold) {
 		//std::cerr << "WALL FOLLOWING !" << std::endl;
 		// Wall-following behaviour + Aggregation
 		for(size_t k = 0; k < evalAnglesNb; ++k) {
