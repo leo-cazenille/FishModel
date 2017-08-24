@@ -40,6 +40,9 @@ std::pair<Agent*, Behavior*> SimulationFactory::_createAgent(std::string const& 
 	//	b = new Model3DBehavior(*_sim, a);
 	} else if(behaviorType == "BM") {
 		b = new BM(*_sim, a);
+	} else if(behaviorType == "BMWithWalls") {
+		b = new BMWithWalls(*_sim, a);
+		reinterpret_cast<BMWithWalls*>(b)->wallsCoord = wallsCoord;
 	} else if(behaviorType == "TrajectoryFollowing") {
 		b = new TrajectoryFollowingBehaviour(*_sim, a);
 	} else if(behaviorType == "ZoneDependantBM") {
@@ -53,6 +56,7 @@ std::pair<Agent*, Behavior*> SimulationFactory::_createAgent(std::string const& 
 		for(size_t i = 0; i < nbZones; ++i) {
 			reinterpret_cast<ZonedBM*>(zones[i+1].get())->zdb(zdb);
 			reinterpret_cast<ZonedBM*>(zones[i+1].get())->zonesAffinity(affinities);
+			reinterpret_cast<ZonedBM*>(zones[i+1].get())->wallsCoord = wallsCoord;
 		}
 		b = zdb;
 	} else {

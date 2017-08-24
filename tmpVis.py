@@ -77,7 +77,7 @@ if __name__ == "__main__":
 		currentPositions = np.hstack(zip(sim.agentsHeadsPosX, sim.agentsHeadsPosY))
 		positions.append(currentPositions)
 		if t % 1000 == 0:
-			print "# ", t, " timestep"
+			print("# ", t, " timestep")
 	positions = np.array(positions)
 
 
@@ -104,7 +104,7 @@ if __name__ == "__main__":
 #			horizontalalignment='center',
 #			verticalalignment='center',
 #			transform = ax.transAxes)
-#	print "AvgDetected=" + str(avgDetected)
+#	print("AvgDetected=" + str(avgDetected))
 #	for t in data:
 #		for i in range(nbAgents):
 #			points[i].set_data(t[1 + i * 3], t[1 + i * 3 + 1])

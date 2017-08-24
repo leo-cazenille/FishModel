@@ -13,6 +13,7 @@
 
 #include "model.hpp"
 #include "bm.hpp"
+#include "bmWithWalls.hpp"
 #include "zones.hpp"
 
 
@@ -28,6 +29,8 @@ public:
 	std::string behaviorFishes = "Model3D";
 	std::string behaviorRobots = "Model3D";
 	std::string behaviorVirtuals = "Model3D";
+
+	std::vector<std::pair<Coord_t,Coord_t>> wallsCoord;
 
 	std::vector<std::vector<Coord3D_t>> trajectories;
 	size_t currentTrajectoryIndex = 0;

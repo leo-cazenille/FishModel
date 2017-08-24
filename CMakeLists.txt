@@ -58,6 +58,7 @@ endif()
 
 set(srcs
     bm.cpp
+	bmWithWalls.cpp
     factory.cpp
     model.cpp
     random.cpp

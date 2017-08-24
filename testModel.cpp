@@ -108,12 +108,22 @@ int main(int argc, char** argv) {
 	factory.nbVirtuals = 0;
 	factory.nbZones = nbZones;
 
-	//factory.behaviorFishes = "BM"; //"TrajectoryFollowing";
-	//factory.behaviorRobots = "BM";
-	//factory.behaviorVirtuals = "BM";
-	factory.behaviorFishes = "ZoneDependantBM";
-	factory.behaviorRobots = "ZoneDependantBM";
-	factory.behaviorVirtuals = "ZoneDependantBM";
+	////factory.behaviorFishes = "BM"; //"TrajectoryFollowing";
+	////factory.behaviorRobots = "BM";
+	////factory.behaviorVirtuals = "BM";
+	//factory.behaviorFishes = "ZoneDependantBM";
+	//factory.behaviorRobots = "ZoneDependantBM";
+	//factory.behaviorVirtuals = "ZoneDependantBM";
+	factory.behaviorFishes = "BMWithWalls";
+	factory.behaviorRobots = "BMWithWalls";
+	factory.behaviorVirtuals = "BMWithWalls";
+
+	factory.wallsCoord = {
+		{{0.015, 0.015}, {0.015, 0.975}},
+		{{0.015, 0.975}, {0.975, 0.975}},
+		{{0.975, 0.975}, {0.975, 0.015}},
+		{{0.975, 0.015}, {0.015, 0.015}},
+	};
 
 	// Find input trajectories, if wanted
 	if(inputFilename != "") {
